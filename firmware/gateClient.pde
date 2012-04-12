@@ -1,8 +1,9 @@
+#include <SPI.h>
 #include <Wire.h>
 #include <Ethernet.h>
 #include <OneWire.h>
 
-#define RESEARCH
+#define USER
 #define PORT 7628
 
 #define RETRIES 30
@@ -78,12 +79,12 @@ char asciiAddr[18];
 OneWire iButton= OneWire(14);
 byte addr[8];
 
-int locked=0;
-int debounce = 0;
+boolean locked=false;
+boolean debounce = false;
 
 
 void unlock(){
-  locked=0;
+  locked=false;
   digitalWrite(IN1,HIGH);
   digitalWrite(IN2,LOW);
   delay(100);
@@ -94,7 +95,7 @@ void unlock(){
 
 
 void lock(){
-  locked=1;
+  locked=true;
   digitalWrite(IN1,LOW);
   digitalWrite(IN2,HIGH);
   delay(100);
@@ -150,31 +151,26 @@ void setup() {
 
 void loop()
 {
-    int stat = client.status();
-    Serial.print(stat,DEC);
     digitalWrite(SS,LOW);//ss
-      
     if (client.connected()) {
       parseMessages();
       if (search(addr)){
         
-        //convert addr to ascii
         sprintf(asciiAddr,"%02X%02X%02X%02X%02X%02X%02X%02X\0",
                     addr[7],addr[6],addr[5],addr[4],
                     addr[3],addr[2],addr[1],addr[0]);
-        
          
-        asciiAddr[16]=0; 
-        Serial.println(asciiAddr);    
-        if (debounce>DEBOUNCE){
-          debounce=0;
+        asciiAddr[16]=0;
+        Serial.println(asciiAddr);
+        if (!debounce){
+          debounce=true;
           sendMessage('I', '=',asciiAddr);
           delay(100);
         }
       }
       else{
-        if (debounce<=DEBOUNCE){
-          debounce++;
+        if (debounce){
+          debounce = false;
         }
       }
     }
@@ -200,11 +196,11 @@ void loop()
           resetETH();
           delay(500);
           Ethernet.begin(mac, ip, gateway, subnet);
+          client.stop();
           delay(500);
           tries=0;
         }
         Serial.println("failed!");
-        client.stop();
         flash(7);
       }
     }
@@ -337,16 +333,16 @@ void sendMessage(char messageCode, char messageID, char* payload){
   
 }
 
-int search(byte* addr){
+boolean search(byte* addr){
   
   if ( !iButton.search(addr)) {
       iButton.reset_search();
-      return 0;
+      return false;
   }
   
   iButton.reset();
   
-  return 1;
+  return true;
 }
 
 
